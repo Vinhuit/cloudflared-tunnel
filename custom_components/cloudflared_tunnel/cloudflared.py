@@ -7,7 +7,7 @@ import shutil
 import stat
 import urllib.request
 from typing import Optional, Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers.event import async_track_time_interval
@@ -36,18 +36,20 @@ class CloudflaredTunnel:
         self._error_msg: Optional[str] = None
         self._last_restart: Optional[datetime] = None
         self._status_check_unsub = None
-        
-        # Start status monitoring
-        self._start_status_monitoring()
 
-    def _start_status_monitoring(self) -> None:
+    async def async_init(self) -> None:
+        """Initialize async components."""
+        await self._start_status_monitoring()
+
+    async def _start_status_monitoring(self) -> None:
         """Start periodic status monitoring."""
         if self._status_check_unsub is not None:
             self._status_check_unsub()
         
-        # Check status every 30 seconds
         self._status_check_unsub = async_track_time_interval(
-            self.hass, self._check_process_status, dt_util.timedelta(seconds=30)
+            self.hass, 
+            self._check_process_status,
+            timedelta(seconds=30)
         )
 
     async def _check_process_status(self, *_) -> None:

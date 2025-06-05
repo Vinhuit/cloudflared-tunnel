@@ -3,7 +3,7 @@
   "content_in_root": false,
   "render_readme": true,
   "domains": ["cloudflared_tunnel"],
-  "country": "us",
+  "country": "vn",
   "homeassistant": "2023.8.0",  
   "hacs": "1.6.0",
   "hide_default_branch": true,

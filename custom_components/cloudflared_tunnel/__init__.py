@@ -33,14 +33,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     token = entry.data.get(CONF_TOKEN)  # Optional token
 
     tunnel = CloudflaredTunnel(hass, hostname, port, token)
-    hass.data[DOMAIN][DATA_TUNNELS][entry.entry_id] = tunnel
-
+    
     try:
+        # Initialize monitoring first
+        await tunnel.async_init()
+        # Then try to start the tunnel
         await tunnel.start()
     except Exception as err:
         raise ConfigEntryNotReady from err
 
+    hass.data[DOMAIN][DATA_TUNNELS][entry.entry_id] = tunnel
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
