@@ -108,8 +108,16 @@ async def safe_download_cloudflared() -> None:
         
         # Ensure final binary has correct permissions
         os.chmod(BIN_PATH, 0o755)
-    
-    _LOGGER.info("cloudflared downloaded to: %s", BIN_PATH)
+        
+        _LOGGER.info("cloudflared downloaded to: %s", BIN_PATH)
+    except Exception as err:
+        _LOGGER.error("Failed to download cloudflared: %s", err)
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+        raise
 
 
 class CloudflaredTunnel:
