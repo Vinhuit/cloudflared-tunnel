@@ -1,4 +1,8 @@
+"""Constants for the Cloudflared Tunnel integration."""
+
 DOMAIN = "cloudflared_tunnel"
+
+# Configuration
 CONF_HOSTNAME = "hostname"
 CONF_PORT = "port"
 
@@ -13,4 +17,3 @@ STATUS_ERROR = "error"
 
 # Data storage keys
 DATA_TUNNELS = "tunnels"
-DATA_PROCESS = "process"

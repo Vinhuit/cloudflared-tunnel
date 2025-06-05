@@ -9,6 +9,15 @@
           "port": "Local Port"
         }
       }
+    },
+    "error": {
+      "cannot_connect": "Failed to start tunnel",
+      "invalid_hostname": "Invalid hostname",
+      "invalid_port": "Port must be between 1 and 65535",
+      "already_configured": "This tunnel hostname is already configured"
+    },
+    "abort": {
+      "already_configured": "This tunnel hostname is already configured"
     }
   }
 }
