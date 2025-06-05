@@ -61,11 +61,12 @@ class CloudflaredTunnel:
         try:
             self.process = await asyncio.create_subprocess_exec(
                 BIN_PATH,
-                "tunnel",
-                "--url",
-                f"http://localhost:{self.port}",
+                "access",
+                "tcp",
                 "--hostname",
                 self.hostname,
+                "--url",
+                f"localhost:{self.port}",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

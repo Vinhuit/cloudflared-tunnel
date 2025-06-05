@@ -1,14 +1,15 @@
 # Cloudflared Tunnel Integration for Home Assistant
 
-This custom integration allows you to run Cloudflare TCP tunnels to expose local services securely over the internet.
+This custom integration allows you to run Cloudflare TCP access tunnels to expose local services securely over the internet. It uses the `cloudflared access tcp` command to create tunnels without requiring a permanent tunnel configuration.
 
 ## Features
 
-- Multiple tunnel support
+- Multiple TCP access tunnel support
 - Automatic download and management of the `cloudflared` binary
 - User-friendly configuration through the UI
 - Real-time tunnel status monitoring
 - Stop/Start controls for each tunnel
+- Perfect for temporary or dynamic TCP tunnels
 - HACS-compatible
 
 ## Installation
@@ -50,15 +51,30 @@ For each tunnel, the following entities are created:
 
 1. Wyoming Protocol Services:
 ```yaml
-hostname: tts.mydomain.com
-port: 10300
+hostname: wyoming.mydomain.com
+port: 10300  # Local Wyoming protocol service port
 ```
 
 2. Home Assistant Remote Access:
 ```yaml
 hostname: home.mydomain.com
-port: 8123
+port: 8123  # Home Assistant port
 ```
+
+3. SSH Access:
+```yaml
+hostname: ssh.mydomain.com
+port: 22  # SSH port
+```
+
+## How It Works
+
+This integration uses Cloudflare's TCP tunneling feature (`cloudflared access tcp`) to create instant tunnels without requiring a permanent tunnel configuration. Each tunnel:
+
+1. Establishes a secure connection to Cloudflare
+2. Routes traffic from your chosen hostname to a local port
+3. Requires no configuration on the Cloudflare dashboard
+4. Can be started/stopped on demand
 
 ## Troubleshooting
 
