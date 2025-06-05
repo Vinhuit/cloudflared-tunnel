@@ -6,6 +6,7 @@ import platform
 import shutil
 import stat
 import urllib.request
+import time
 from typing import Optional, Callable
 from datetime import datetime, timedelta
 from homeassistant.core import HomeAssistant
@@ -19,6 +20,44 @@ _LOGGER = logging.getLogger(__name__)
 
 BIN_DIR = os.path.join(os.path.dirname(__file__), "bin")
 BIN_PATH = os.path.join(BIN_DIR, "cloudflared" + (".exe" if platform.system().lower() == "windows" else ""))
+
+MAX_RETRIES = 3
+RETRY_DELAY = 2  # seconds
+
+async def safe_download_cloudflared() -> None:
+    """Download the cloudflared binary with retries."""
+    temp_path = BIN_PATH + ".tmp"
+    system = platform.system().lower()
+    arch = platform.machine().lower()
+
+    if system == "linux":
+        if "arm" in arch or "aarch64" in arch:
+            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
+        elif "x86_64" in arch:
+            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
+        else:
+            raise RuntimeError(f"Unsupported architecture: {arch}")
+    elif system == "darwin":
+        url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64"
+    elif system == "windows":
+        url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
+    else:
+        raise RuntimeError(f"Unsupported OS: {system}")
+
+    _LOGGER.info("Downloading cloudflared from %s", url)
+    
+    # Download to temporary file first
+    urllib.request.urlretrieve(url, temp_path)
+    
+    if system != "windows":
+        os.chmod(temp_path, os.stat(temp_path).st_mode | stat.S_IEXEC)
+    
+    # Replace the actual binary
+    if os.path.exists(BIN_PATH):
+        os.remove(BIN_PATH)
+    os.rename(temp_path, BIN_PATH)
+    
+    _LOGGER.info("cloudflared downloaded to: %s", BIN_PATH)
 
 
 class CloudflaredTunnel:
@@ -107,58 +146,79 @@ class CloudflaredTunnel:
 
     async def start(self) -> None:
         """Start the tunnel."""
-        if self.process and self.process.returncode is None:  # Check if process is still running
+        if self.process and self.process.returncode is None:
             return
 
+        # Ensure binary directory exists
+        os.makedirs(BIN_DIR, exist_ok=True)
+
+        # Download or update binary if needed
         if not os.path.exists(BIN_PATH):
             _LOGGER.info("cloudflared binary not found, downloading...")
-            await self.hass.async_add_executor_job(download_cloudflared)
+            await self.hass.async_add_executor_job(safe_download_cloudflared)
 
-        try:
-            cmd = [
-                BIN_PATH,
-                "access",
-                "tcp",
-                "--hostname",
-                self.hostname,
-                "--url",
-                f"localhost:{self.port}",
-            ]
+        retries = MAX_RETRIES
+        while retries > 0:
+            try:
+                cmd = [
+                    BIN_PATH,
+                    "access",
+                    "tcp",
+                    "--hostname",
+                    self.hostname,
+                    "--url",
+                    f"localhost:{self.port}",
+                ]
 
-            if self.token:
-                cmd.extend(["--service-token-id", self.token])
+                if self.token:
+                    cmd.extend(["--service-token-id", self.token])
 
-            self.process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            
-            # Check initial output for any immediate errors
-            error_line = await self.process.stderr.readline()
-            if error_line:
-                error_msg = error_line.decode().strip()
-                if "token" in error_msg.lower():
-                    raise ConfigEntryError(f"Token authentication failed: {error_msg}")
-                raise ConfigEntryError(f"Tunnel error: {error_msg}")
+                self.process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
 
-            self._status = STATUS_RUNNING
-            self._error_msg = None
-            _LOGGER.info(
-                "Started cloudflared tunnel for %s:%s%s", 
-                self.hostname, 
-                self.port,
-                " (Protected)" if self.token else ""
-            )
+                # Check initial output for any immediate errors
+                error_line = await self.process.stderr.readline()
+                if error_line:
+                    error_msg = error_line.decode().strip()
+                    if "text file busy" in error_msg.lower():
+                        if retries > 1:
+                            _LOGGER.warning("Binary is busy, retrying in %s seconds...", RETRY_DELAY)
+                            await asyncio.sleep(RETRY_DELAY)
+                            retries -= 1
+                            continue
+                    if "token" in error_msg.lower():
+                        raise ConfigEntryError(f"Token authentication failed: {error_msg}")
+                    raise ConfigEntryError(f"Tunnel error: {error_msg}")
 
-            # Monitor the process output
-            self.hass.loop.create_task(self._monitor_output())
+                self._status = STATUS_RUNNING
+                self._error_msg = None
+                _LOGGER.info(
+                    "Started cloudflared tunnel for %s:%s%s",
+                    self.hostname,
+                    self.port,
+                    " (Protected)" if self.token else ""
+                )
 
-        except Exception as err:
-            self._status = STATUS_ERROR
-            self._error_msg = str(err)
-            _LOGGER.error("Failed to start tunnel: %s", err)
-            raise
+                # Monitor the process output
+                self.hass.loop.create_task(self._monitor_output())
+                break
+
+            except Exception as err:
+                if "text file busy" in str(err).lower() and retries > 1:
+                    _LOGGER.warning("Binary is busy, retrying in %s seconds...", RETRY_DELAY)
+                    await asyncio.sleep(RETRY_DELAY)
+                    retries -= 1
+                    continue
+                self._status = STATUS_ERROR
+                self._error_msg = str(err)
+                _LOGGER.error("Failed to start tunnel: %s", err)
+                raise
+
+        if retries == 0:
+            raise ConfigEntryError("Failed to start tunnel after multiple retries")
 
     async def _monitor_output(self) -> None:
         """Monitor the tunnel process output."""
@@ -214,34 +274,3 @@ class CloudflaredTunnel:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Stop the tunnel when exiting context."""
         await self.stop()
-
-
-def download_cloudflared() -> None:
-    """Download the cloudflared binary."""
-    os.makedirs(BIN_DIR, exist_ok=True)
-
-    system = platform.system().lower()
-    arch = platform.machine().lower()
-
-    if system == "linux":
-        if "arm" in arch or "aarch64" in arch:
-            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
-        elif "x86_64" in arch:
-            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
-        else:
-            raise RuntimeError(f"Unsupported architecture: {arch}")
-    elif system == "darwin":
-        url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64"
-    elif system == "windows":
-        url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
-    else:
-        raise RuntimeError(f"Unsupported OS: {system}")
-
-    _LOGGER.info("Downloading cloudflared from %s", url)
-    dest = BIN_PATH
-    urllib.request.urlretrieve(url, dest)
-
-    if system != "windows":
-        os.chmod(dest, os.stat(dest).st_mode | stat.S_IEXEC)
-
-    _LOGGER.info("cloudflared downloaded to: %s", BIN_PATH)
