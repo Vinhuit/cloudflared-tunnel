@@ -33,9 +33,7 @@ async def async_setup_entry(
 class CloudflaredBaseSensor(SensorEntity):
     """Base class for Cloudflared sensors."""
 
-    _attr_has_entity_name = True
-
-    def __init__(self, config_entry: ConfigEntry, tunnel) -> None:
+    _attr_has_entity_name = True    def __init__(self, config_entry: ConfigEntry, tunnel) -> None:
         """Initialize the sensor."""
         self._config_entry = config_entry
         self._tunnel = tunnel
@@ -43,6 +41,12 @@ class CloudflaredBaseSensor(SensorEntity):
             identifiers={(DOMAIN, config_entry.entry_id)},
             name=f"Cloudflared Tunnel ({tunnel.hostname})",
             manufacturer="Cloudflare",
+            model="TCP Tunnel",
+            sw_version="1.0.0",
+            configuration_url=f"https://{tunnel.hostname}",
+            entry_type="service",
+            suggested_area="Network",
+            icon="mdi:tunnel",
         )
 
 
