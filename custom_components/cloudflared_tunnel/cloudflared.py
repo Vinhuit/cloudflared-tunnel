@@ -7,8 +7,11 @@ import shutil
 import stat
 import urllib.request
 from typing import Optional, Callable
+from datetime import datetime
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
+from homeassistant.helpers.event import async_track_time_interval
+import homeassistant.util.dt as dt_util
 
 from .const import STATUS_RUNNING, STATUS_STOPPED, STATUS_ERROR
 
@@ -31,6 +34,51 @@ class CloudflaredTunnel:
         self._status = STATUS_STOPPED
         self._listeners: list[Callable] = []
         self._error_msg: Optional[str] = None
+        self._last_restart: Optional[datetime] = None
+        self._status_check_unsub = None
+        
+        # Start status monitoring
+        self._start_status_monitoring()
+
+    def _start_status_monitoring(self) -> None:
+        """Start periodic status monitoring."""
+        if self._status_check_unsub is not None:
+            self._status_check_unsub()
+        
+        # Check status every 30 seconds
+        self._status_check_unsub = async_track_time_interval(
+            self.hass, self._check_process_status, dt_util.timedelta(seconds=30)
+        )
+
+    async def _check_process_status(self, *_) -> None:
+        """Check if the process is still running and update status."""
+        if not self.process:
+            if self._status != STATUS_STOPPED:
+                self._update_status(STATUS_STOPPED)
+            return
+
+        try:
+            # Check if process is still running
+            if self.process.returncode is not None:
+                # Process has terminated
+                self._error_msg = "Process terminated unexpectedly"
+                self._update_status(STATUS_ERROR)
+                self.process = None
+                
+                # Attempt restart if it wasn't stopped intentionally
+                if (self._last_restart is None or 
+                    (dt_util.utcnow() - self._last_restart).total_seconds() > 300):  # 5 minute cooldown
+                    _LOGGER.info("Tunnel terminated unexpectedly, attempting restart...")
+                    self._last_restart = dt_util.utcnow()
+                    await self.start()
+            elif self._status != STATUS_RUNNING:
+                # Process is running but status doesn't reflect it
+                self._update_status(STATUS_RUNNING)
+                
+        except Exception as err:
+            _LOGGER.error("Error checking tunnel status: %s", err)
+            self._error_msg = str(err)
+            self._update_status(STATUS_ERROR)
 
     @property
     def status(self) -> str:
@@ -50,13 +98,14 @@ class CloudflaredTunnel:
 
     def _update_status(self, new_status: str) -> None:
         """Update status and notify listeners."""
-        self._status = new_status
-        for listener in self._listeners:
-            self.hass.async_create_task(listener())
+        if new_status != self._status:
+            self._status = new_status
+            for listener in self._listeners:
+                self.hass.async_create_task(listener())
 
     async def start(self) -> None:
         """Start the tunnel."""
-        if self.process:
+        if self.process and self.process.returncode is None:  # Check if process is still running
             return
 
         if not os.path.exists(BIN_PATH):
@@ -74,7 +123,6 @@ class CloudflaredTunnel:
                 f"localhost:{self.port}",
             ]
 
-            # Add token if provided
             if self.token:
                 cmd.extend(["--service-token-id", self.token])
 
@@ -83,7 +131,7 @@ class CloudflaredTunnel:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-
+            
             # Check initial output for any immediate errors
             error_line = await self.process.stderr.readline()
             if error_line:
@@ -95,10 +143,10 @@ class CloudflaredTunnel:
             self._status = STATUS_RUNNING
             self._error_msg = None
             _LOGGER.info(
-                "Started cloudflared tunnel for %s:%s%s",
-                self.hostname,
+                "Started cloudflared tunnel for %s:%s%s", 
+                self.hostname, 
                 self.port,
-                " (Protected)" if self.token else "",
+                " (Protected)" if self.token else ""
             )
 
             # Monitor the process output
@@ -150,6 +198,20 @@ class CloudflaredTunnel:
                 self.process = None
                 self._update_status(STATUS_STOPPED)
                 _LOGGER.info("Stopped cloudflared tunnel for %s:%s", self.hostname, self.port)
+
+        # Stop the status monitoring
+        if self._status_check_unsub:
+            self._status_check_unsub()
+            self._status_check_unsub = None
+
+    async def __aenter__(self):
+        """Start the tunnel when entering context."""
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Stop the tunnel when exiting context."""
+        await self.stop()
 
 
 def download_cloudflared() -> None:
