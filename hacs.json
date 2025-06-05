@@ -4,9 +4,7 @@
   "render_readme": true,
   "domains": ["cloudflared_tunnel"],
   "country": "us",
-  "homeassistant": "2023.8.0",
-  "zip_release": true,
-  "filename": "cloudflared_tunnel.zip",
+  "homeassistant": "2023.8.0",  
   "hacs": "1.6.0",
   "hide_default_branch": true,
   "icon": "custom_components/cloudflared_tunnel/brands/icon.png"
