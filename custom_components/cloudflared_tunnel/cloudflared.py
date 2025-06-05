@@ -7,6 +7,7 @@ import shutil
 import stat
 import urllib.request
 import time
+import subprocess
 from typing import Optional, Callable
 from datetime import datetime, timedelta
 from homeassistant.core import HomeAssistant
@@ -19,38 +20,87 @@ from .const import STATUS_RUNNING, STATUS_STOPPED, STATUS_ERROR
 _LOGGER = logging.getLogger(__name__)
 
 BIN_DIR = os.path.join(os.path.dirname(__file__), "bin")
-BIN_PATH = os.path.join(BIN_DIR, "cloudflared" + (".exe" if platform.system().lower() == "windows" else ""))
+BIN_PATH = os.path.join(BIN_DIR, "cloudflared")
 
 MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
 
+async def kill_port_process(port: int) -> None:
+    """Kill any process using the specified port with force."""
+    try:
+        for _ in range(2):  # Try twice to ensure process is killed
+            # Try multiple methods for killing the process
+            try:
+                # Try lsof first
+                subprocess.run(f"lsof -ti tcp:{port} | xargs kill -9", shell=True, capture_output=True)
+            except Exception:
+                pass
+
+            try:
+                # Try fuser as backup
+                subprocess.run(f"fuser -k -n tcp {port}", shell=True, capture_output=True)
+            except Exception:
+                pass
+
+            try:
+                # Additional method using netstat and pkill
+                subprocess.run(
+                    f"netstat -tlpn | grep ':{port}' | awk '{{print $7}}' | cut -d'/' -f1 | xargs -r kill -9",
+                    shell=True,
+                    capture_output=True
+                )
+            except Exception:
+                pass
+            
+            await asyncio.sleep(0.5)  # Brief pause between attempts
+            
+        _LOGGER.info("Successfully cleared port %s", port)
+    except Exception as err:
+        _LOGGER.warning("Error while attempting to clear port %s: %s", port, err)
+
+async def _kill_process_on_port(port: int) -> None:
+    """Kill any process using the specified port."""
+    try:
+        if platform.system().lower() == "windows":
+            cmd = f"Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }}"
+            process = await asyncio.create_subprocess_exec(
+                "powershell.exe", "-Command", cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+        else:
+            cmd = f"lsof -ti tcp:{port} | xargs kill -9"
+            process = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+        
+        await process.wait()
+        await asyncio.sleep(1)  # Give the system time to free up the port
+        _LOGGER.debug("Port %s cleanup completed", port)
+    except Exception as err:
+        _LOGGER.warning("Error during port cleanup: %s", err)
+
 async def safe_download_cloudflared() -> None:
     """Download the cloudflared binary with retries."""
     temp_path = BIN_PATH + ".tmp"
-    system = platform.system().lower()
     arch = platform.machine().lower()
 
-    if system == "linux":
-        if "arm" in arch or "aarch64" in arch:
-            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
-        elif "x86_64" in arch:
-            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
-        else:
-            raise RuntimeError(f"Unsupported architecture: {arch}")
-    elif system == "darwin":
-        url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64"
-    elif system == "windows":
-        url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
+    if "arm" in arch or "aarch64" in arch:
+        url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
+    elif "x86_64" in arch:
+        url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
     else:
-        raise RuntimeError(f"Unsupported OS: {system}")
+        raise RuntimeError(f"Unsupported architecture: {arch}")
 
     _LOGGER.info("Downloading cloudflared from %s", url)
     
     # Download to temporary file first
     urllib.request.urlretrieve(url, temp_path)
     
-    if system != "windows":
-        os.chmod(temp_path, os.stat(temp_path).st_mode | stat.S_IEXEC)
+    # Make the binary executable
+    os.chmod(temp_path, os.stat(temp_path).st_mode | stat.S_IEXEC)
     
     # Replace the actual binary
     if os.path.exists(BIN_PATH):
@@ -156,6 +206,9 @@ class CloudflaredTunnel:
         if not os.path.exists(BIN_PATH):
             _LOGGER.info("cloudflared binary not found, downloading...")
             await self.hass.async_add_executor_job(safe_download_cloudflared)
+
+        # Kill any existing process using the port
+        await kill_port_process(self.port)
 
         retries = MAX_RETRIES
         while retries > 0:
@@ -274,3 +327,51 @@ class CloudflaredTunnel:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Stop the tunnel when exiting context."""
         await self.stop()
+
+    async def _is_port_active(self) -> bool:
+        """Check if the port is active and responding."""
+        try:
+            # Check using multiple methods for better reliability
+            try:
+                # Try lsof first
+                result = subprocess.run(
+                    f"lsof -i tcp:{self._port}",
+                    shell=True,
+                    capture_output=True,
+                    text=True
+                )
+                if result.stdout.strip():
+                    return True
+            except Exception:
+                pass
+
+            try:
+                # Try netstat as backup
+                result = subprocess.run(
+                    f"netstat -tln | grep ':{self._port}'",
+                    shell=True,
+                    capture_output=True,
+                    text=True
+                )
+                if result.stdout.strip():
+                    return True
+            except Exception:
+                pass
+
+            try:
+                # Try ss as a modern alternative
+                result = subprocess.run(
+                    f"ss -tln | grep ':{self._port}'",
+                    shell=True,
+                    capture_output=True,
+                    text=True
+                )
+                if result.stdout.strip():
+                    return True
+            except Exception:
+                pass
+
+            return False
+        except Exception as err:
+            _LOGGER.error("Error checking port status: %s", err)
+            return False
