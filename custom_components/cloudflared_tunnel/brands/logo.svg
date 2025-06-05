@@ -1,0 +1,18 @@
+<svg width="300" height="100" viewBox="0 0 300 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Logo Group -->
+  <g transform="translate(10,0)">
+    <!-- Background Circle -->
+    <circle cx="50" cy="50" r="45" fill="#F6821F"/>
+    
+    <!-- Tunnel shape -->
+    <path d="M25 35 Q50 35 50 65 Q50 35 75 35" stroke="white" stroke-width="8" fill="none"/>
+    <path d="M25 45 Q50 45 50 75 Q50 45 75 45" stroke="white" stroke-width="8" fill="none"/>
+    
+    <!-- Arrow -->
+    <path d="M40 25 L60 25 L50 15 Z" fill="white"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="120" y="45" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#F6821F">Cloudflared</text>
+  <text x="120" y="70" font-family="Arial, sans-serif" font-size="24" fill="#666666">Tunnel</text>
+</svg>

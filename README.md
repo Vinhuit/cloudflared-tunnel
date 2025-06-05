@@ -1,5 +1,7 @@
 # Cloudflared Tunnel Integration for Home Assistant
 
+<img src="custom_components/cloudflared_tunnel/brands/icon.png" alt="Cloudflared Tunnel Logo" width="100"/>
+
 This custom integration allows you to run Cloudflare TCP access tunnels to expose local services securely over the internet. It uses the `cloudflared access tcp` command to create tunnels without requiring a permanent tunnel configuration.
 
 ## Features
