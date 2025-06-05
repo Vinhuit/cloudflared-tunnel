@@ -36,12 +36,7 @@ async def kill_port_process(port: int) -> None:
             except Exception:
                 pass
 
-            try:
-                # Try fuser as backup
-                subprocess.run(f"fuser -k -n tcp {port}", shell=True, capture_output=True)
-            except Exception:
-                pass
-
+            
             try:
                 # Additional method using netstat and pkill
                 subprocess.run(
@@ -84,6 +79,9 @@ async def _kill_process_on_port(port: int) -> None:
 
 async def safe_download_cloudflared() -> None:
     """Download the cloudflared binary with retries."""
+    # Create binary directory with proper permissions
+    os.makedirs(BIN_DIR, mode=0o755, exist_ok=True)
+    
     temp_path = BIN_PATH + ".tmp"
     arch = platform.machine().lower()
 
@@ -96,16 +94,20 @@ async def safe_download_cloudflared() -> None:
 
     _LOGGER.info("Downloading cloudflared from %s", url)
     
-    # Download to temporary file first
-    urllib.request.urlretrieve(url, temp_path)
-    
-    # Make the binary executable
-    os.chmod(temp_path, os.stat(temp_path).st_mode | stat.S_IEXEC)
-    
-    # Replace the actual binary
-    if os.path.exists(BIN_PATH):
-        os.remove(BIN_PATH)
-    os.rename(temp_path, BIN_PATH)
+    try:
+        # Download to temporary file first
+        urllib.request.urlretrieve(url, temp_path)
+        
+        # Make the binary executable
+        os.chmod(temp_path, 0o755)  # rwxr-xr-x permissions
+        
+        # Replace the actual binary
+        if os.path.exists(BIN_PATH):
+            os.remove(BIN_PATH)
+        os.rename(temp_path, BIN_PATH)
+        
+        # Ensure final binary has correct permissions
+        os.chmod(BIN_PATH, 0o755)
     
     _LOGGER.info("cloudflared downloaded to: %s", BIN_PATH)
 
@@ -206,9 +208,6 @@ class CloudflaredTunnel:
         if not os.path.exists(BIN_PATH):
             _LOGGER.info("cloudflared binary not found, downloading...")
             await self.hass.async_add_executor_job(safe_download_cloudflared)
-
-        # Kill any existing process using the port
-        #await kill_port_process(self.port)
 
         retries = MAX_RETRIES
         while retries > 0:
