@@ -1,0 +1,10 @@
+{
+  "domain": "cloudflared_tunnel",
+  "name": "Cloudflared Tunnel (TCP)",
+  "version": "1.0.0",
+  "documentation": "https://github.com/YOUR_GITHUB/cloudflared_tunnel",
+  "requirements": [],
+  "codeowners": ["@yourgithub"],
+  "config_flow": true,
+  "iot_class": "local_push"
+}
