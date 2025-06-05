@@ -77,12 +77,11 @@ async def _kill_process_on_port(port: int) -> None:
     except Exception as err:
         _LOGGER.warning("Error during port cleanup: %s", err)
 
-async def safe_download_cloudflared() -> None:
+def safe_download_cloudflared() -> None:
     """Download the cloudflared binary with retries."""
     # Create binary directory with proper permissions
     os.makedirs(BIN_DIR, mode=0o755, exist_ok=True)
     
-    temp_path = BIN_PATH + ".tmp"
     arch = platform.machine().lower()
 
     if "arm" in arch or "aarch64" in arch:
@@ -95,26 +94,19 @@ async def safe_download_cloudflared() -> None:
     _LOGGER.info("Downloading cloudflared from %s", url)
     
     try:
-        # Download to temporary file first
-        urllib.request.urlretrieve(url, temp_path)
+        # Download directly to final location
+        urllib.request.urlretrieve(url, BIN_PATH)
         
         # Make the binary executable
-        os.chmod(temp_path, 0o755)  # rwxr-xr-x permissions
-        
-        # Replace the actual binary
-        if os.path.exists(BIN_PATH):
-            os.remove(BIN_PATH)
-        os.rename(temp_path, BIN_PATH)
-        
-        # Ensure final binary has correct permissions
-        os.chmod(BIN_PATH, 0o755)
+        os.chmod(BIN_PATH, 0o755)  # rwxr-xr-x permissions
         
         _LOGGER.info("cloudflared downloaded to: %s", BIN_PATH)
+        
     except Exception as err:
         _LOGGER.error("Failed to download cloudflared: %s", err)
-        if os.path.exists(temp_path):
+        if os.path.exists(BIN_PATH):
             try:
-                os.remove(temp_path)
+                os.remove(BIN_PATH)
             except:
                 pass
         raise
