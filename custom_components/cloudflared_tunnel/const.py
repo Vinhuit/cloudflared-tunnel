@@ -5,6 +5,7 @@ DOMAIN = "cloudflared_tunnel"
 # Configuration
 CONF_HOSTNAME = "hostname"
 CONF_PORT = "port"
+CONF_TOKEN = "token"  # JWT token
 
 # Platform names
 PLATFORM_SENSOR = "sensor"
@@ -17,3 +18,6 @@ STATUS_ERROR = "error"
 
 # Data storage keys
 DATA_TUNNELS = "tunnels"
+
+# URLs
+TOKEN_DOCS_URL = "https://developers.cloudflare.com/cloudflare-one/identity/users/service-tokens/"

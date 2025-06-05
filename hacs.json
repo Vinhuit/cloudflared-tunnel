@@ -1,9 +1,10 @@
 {
   "name": "Cloudflared Tunnel",
   "content_in_root": false,
+  "render_readme": true,
   "domains": ["cloudflared_tunnel"],
   "country": "us",
-  "homeassistant": "2023.0.0",
-  "filename": "cloudflared_tunnel.jinja",
-  "render_readme": true
+  "homeassistant": "2023.8.0",
+  "zip_release": true,
+  "filename": "cloudflared_tunnel.zip"
 }

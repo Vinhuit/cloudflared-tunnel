@@ -3,10 +3,11 @@
     "step": {
       "user": {
         "title": "Cloudflared Tunnel Setup",
-        "description": "Set up your TCP tunnel.",
+        "description": "Set up your TCP tunnel. For protected services, you can [get a service token here]({token_url})",
         "data": {
           "hostname": "Tunnel Hostname",
-          "port": "Local Port"
+          "port": "Local Port",
+          "token": "[Optional] JWT Token for protected services"
         }
       }
     },
@@ -14,6 +15,7 @@
       "cannot_connect": "Failed to start tunnel",
       "invalid_hostname": "Invalid hostname",
       "invalid_port": "Port must be between 1 and 65535",
+      "invalid_token": "Invalid JWT token",
       "already_configured": "This tunnel hostname is already configured"
     },
     "abort": {

@@ -8,6 +8,7 @@ import stat
 import urllib.request
 from typing import Optional, Callable
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryError
 
 from .const import STATUS_RUNNING, STATUS_STOPPED, STATUS_ERROR
 
@@ -20,18 +21,22 @@ BIN_PATH = os.path.join(BIN_DIR, "cloudflared" + (".exe" if platform.system().lo
 class CloudflaredTunnel:
     """Class to manage a Cloudflared tunnel."""
 
-    def __init__(self, hass: HomeAssistant, hostname: str, port: int) -> None:
+    def __init__(self, hass: HomeAssistant, hostname: str, port: int, token: Optional[str] = None) -> None:
         """Initialize the tunnel."""
         self.hass = hass
         self.hostname = hostname
         self.port = port
+        self.token = token
         self.process: Optional[asyncio.subprocess.Process] = None
         self._status = STATUS_STOPPED
         self._listeners: list[Callable] = []
+        self._error_msg: Optional[str] = None
 
     @property
     def status(self) -> str:
         """Get the current tunnel status."""
+        if self._status == STATUS_ERROR and self._error_msg:
+            return f"{STATUS_ERROR}: {self._error_msg}"
         return self._status
 
     def add_status_listener(self, listener: Callable) -> None:
@@ -59,7 +64,7 @@ class CloudflaredTunnel:
             await self.hass.async_add_executor_job(download_cloudflared)
 
         try:
-            self.process = await asyncio.create_subprocess_exec(
+            cmd = [
                 BIN_PATH,
                 "access",
                 "tcp",
@@ -67,28 +72,70 @@ class CloudflaredTunnel:
                 self.hostname,
                 "--url",
                 f"localhost:{self.port}",
+            ]
+
+            # Add token if provided
+            if self.token:
+                cmd.extend(["--service-token-id", self.token])
+
+            self.process = await asyncio.create_subprocess_exec(
+                *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            self._update_status(STATUS_RUNNING)
-            _LOGGER.info("Started cloudflared tunnel for %s:%s", self.hostname, self.port)
+
+            # Check initial output for any immediate errors
+            error_line = await self.process.stderr.readline()
+            if error_line:
+                error_msg = error_line.decode().strip()
+                if "token" in error_msg.lower():
+                    raise ConfigEntryError(f"Token authentication failed: {error_msg}")
+                raise ConfigEntryError(f"Tunnel error: {error_msg}")
+
+            self._status = STATUS_RUNNING
+            self._error_msg = None
+            _LOGGER.info(
+                "Started cloudflared tunnel for %s:%s%s",
+                self.hostname,
+                self.port,
+                " (Protected)" if self.token else "",
+            )
 
             # Monitor the process output
             self.hass.loop.create_task(self._monitor_output())
 
         except Exception as err:
-            self._update_status(STATUS_ERROR)
+            self._status = STATUS_ERROR
+            self._error_msg = str(err)
             _LOGGER.error("Failed to start tunnel: %s", err)
             raise
 
     async def _monitor_output(self) -> None:
         """Monitor the tunnel process output."""
         assert self.process is not None
+
         while True:
-            line = await self.process.stdout.readline()
-            if not line:
+            try:
+                line = await self.process.stdout.readline()
+                if not line:
+                    error_line = await self.process.stderr.readline()
+                    if error_line:
+                        self._error_msg = error_line.decode().strip()
+                        self._update_status(STATUS_ERROR)
+                    break
+
+                log_line = line.decode().strip()
+                _LOGGER.debug("[cloudflared] %s", log_line)
+
+                if "error" in log_line.lower():
+                    self._error_msg = log_line
+                    self._update_status(STATUS_ERROR)
+
+            except Exception as err:
+                _LOGGER.error("Error monitoring tunnel output: %s", err)
+                self._error_msg = str(err)
+                self._update_status(STATUS_ERROR)
                 break
-            _LOGGER.debug("[cloudflared] %s", line.decode().strip())
 
     async def stop(self) -> None:
         """Stop the tunnel."""

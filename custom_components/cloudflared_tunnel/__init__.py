@@ -10,8 +10,9 @@ from .const import (
     PLATFORM_SENSOR,
     PLATFORM_BUTTON,
     DATA_TUNNELS,
-    STATUS_RUNNING,
-    STATUS_STOPPED,
+    CONF_HOSTNAME,
+    CONF_PORT,
+    CONF_TOKEN,
 )
 from .cloudflared import CloudflaredTunnel
 
@@ -27,10 +28,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if DATA_TUNNELS not in hass.data[DOMAIN]:
         hass.data[DOMAIN][DATA_TUNNELS] = {}
 
-    hostname = entry.data["hostname"]
-    port = entry.data["port"]
+    hostname = entry.data[CONF_HOSTNAME]
+    port = entry.data[CONF_PORT]
+    token = entry.data.get(CONF_TOKEN)  # Optional token
 
-    tunnel = CloudflaredTunnel(hass, hostname, port)
+    tunnel = CloudflaredTunnel(hass, hostname, port, token)
     hass.data[DOMAIN][DATA_TUNNELS][entry.entry_id] = tunnel
 
     try:

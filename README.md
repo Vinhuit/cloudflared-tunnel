@@ -9,6 +9,7 @@ This custom integration allows you to run Cloudflare TCP access tunnels to expos
 - User-friendly configuration through the UI
 - Real-time tunnel status monitoring
 - Stop/Start controls for each tunnel
+- JWT token support for protected services
 - Perfect for temporary or dynamic TCP tunnels
 - HACS-compatible
 
@@ -37,6 +38,26 @@ This custom integration allows you to run Cloudflare TCP access tunnels to expos
 Each tunnel requires:
 - **Hostname**: The Cloudflare hostname for your tunnel (e.g., `mytunnel.mydomain.com`)
 - **Local Port**: The local port to tunnel (e.g., `10300` for Wyoming Protocol)
+- **JWT Token**: (Optional) Service token for protected services
+
+### Getting a JWT Token
+
+If you want to protect your tunnel with authentication, you can use a JWT token. Here's how to get one:
+
+1. Go to the [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com)
+2. Navigate to **Access > Service Auth**
+3. Click **Create Service Token**
+4. Configure your token:
+   - Give it a name (e.g., "HA Tunnel Token")
+   - Set the duration (or leave blank for no expiration)
+   - Add any IP restrictions if desired
+5. Click **Generate Token**
+6. Copy the token and paste it in the integration's configuration
+
+The token will be used to authenticate the tunnel connection. When a token is used:
+- The tunnel becomes protected, requiring authentication
+- A "Protection" sensor will show "Protected" status
+- The tunnel logs will indicate it's running in protected mode
 
 ## Entities Created
 
@@ -49,31 +70,34 @@ For each tunnel, the following entities are created:
 
 ## Example Use Cases
 
-1. Wyoming Protocol Services:
+1. Protected Wyoming Protocol Services:
 ```yaml
 hostname: wyoming.mydomain.com
-port: 10300  # Local Wyoming protocol service port
+port: 10300
+token: your_jwt_token_here  # Optional
 ```
 
-2. Home Assistant Remote Access:
+2. Public Home Assistant Remote Access:
 ```yaml
 hostname: home.mydomain.com
-port: 8123  # Home Assistant port
+port: 8123
+# No token = public access
 ```
 
-3. SSH Access:
+3. Protected SSH Access:
 ```yaml
 hostname: ssh.mydomain.com
-port: 22  # SSH port
+port: 22
+token: your_jwt_token_here  # Recommended for SSH
 ```
 
 ## How It Works
 
-This integration uses Cloudflare's TCP tunneling feature (`cloudflared access tcp`) to create instant tunnels without requiring a permanent tunnel configuration. Each tunnel:
+This integration uses Cloudflare's TCP tunneling feature (`cloudflared access tcp`) to create instant tunnels. Each tunnel:
 
 1. Establishes a secure connection to Cloudflare
 2. Routes traffic from your chosen hostname to a local port
-3. Requires no configuration on the Cloudflare dashboard
+3. Can be optionally protected with JWT authentication
 4. Can be started/stopped on demand
 
 ## Troubleshooting

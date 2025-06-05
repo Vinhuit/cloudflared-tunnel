@@ -25,6 +25,7 @@ async def async_setup_entry(
         CloudflaredHostnameSensor(config_entry, tunnel),
         CloudflaredPortSensor(config_entry, tunnel),
         CloudflaredStatusSensor(config_entry, tunnel),
+        CloudflaredProtectionSensor(config_entry, tunnel),
     ]
     async_add_entities(entities)
 
@@ -93,3 +94,16 @@ class CloudflaredStatusSensor(CloudflaredBaseSensor):
         """Handle status updates."""
         self._attr_native_value = self._tunnel.status
         self.async_write_ha_state()
+
+
+class CloudflaredProtectionSensor(CloudflaredBaseSensor):
+    """Sensor for Cloudflared tunnel protection status."""
+
+    _attr_name = "Protection"
+    _attr_icon = "mdi:shield"
+
+    def __init__(self, config_entry: ConfigEntry, tunnel) -> None:
+        """Initialize the sensor."""
+        super().__init__(config_entry, tunnel)
+        self._attr_unique_id = f"{config_entry.entry_id}_protection"
+        self._attr_native_value = "Protected" if tunnel.token else "Public"

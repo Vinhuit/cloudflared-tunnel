@@ -1,14 +1,20 @@
 """Config flow for Cloudflared Tunnel integration."""
 from __future__ import annotations
 
-from typing import Any
-
+import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
-import voluptuous as vol
+from typing import Any
 
-from .const import DOMAIN, CONF_HOSTNAME, CONF_PORT
+from .const import (
+    DOMAIN,
+    CONF_HOSTNAME,
+    CONF_PORT,
+    CONF_TOKEN,
+    TOKEN_DOCS_URL,
+)
+
 
 @config_entries.HANDLERS.register(DOMAIN)
 class CloudflaredConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -36,7 +42,11 @@ class CloudflaredConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(CONF_HOSTNAME): str,
                     vol.Required(CONF_PORT, default=10300): int,
+                    vol.Optional(CONF_TOKEN): str,
                 }
             ),
+            description_placeholders={
+                "token_url": TOKEN_DOCS_URL,
+            },
             errors=errors,
         )
