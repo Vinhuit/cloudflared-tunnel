@@ -216,10 +216,10 @@ class CloudflaredTunnel:
                     BIN_PATH,
                     "access",
                     "tcp",
-                    "--hostname",
-                    self.hostname,
                     "--url",
                     f"localhost:{self.port}",
+                    "--hostname",
+                    self.hostname,
                 ]
 
                 if self.token:
@@ -235,15 +235,20 @@ class CloudflaredTunnel:
                 error_line = await self.process.stderr.readline()
                 if error_line:
                     error_msg = error_line.decode().strip()
+                    # Only treat as error if it's not the websocket listener message
                     if "text file busy" in error_msg.lower():
                         if retries > 1:
                             _LOGGER.warning("Binary is busy, retrying in %s seconds...", RETRY_DELAY)
                             await asyncio.sleep(RETRY_DELAY)
                             retries -= 1
                             continue
-                    if "token" in error_msg.lower():
+                    elif "token" in error_msg.lower():
                         raise ConfigEntryError(f"Token authentication failed: {error_msg}")
-                    raise ConfigEntryError(f"Tunnel error: {error_msg}")
+                    elif not ("INF Start Websocket listener" in error_msg):
+                        raise ConfigEntryError(f"Tunnel error: {error_msg}")
+                    
+                    # If it's the websocket listener message, log as info
+                    _LOGGER.debug("Cloudflared startup: %s", error_msg)
 
                 self._status = STATUS_RUNNING
                 self._error_msg = None
