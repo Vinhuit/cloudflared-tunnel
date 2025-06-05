@@ -1,17 +1,54 @@
+"""The Cloudflared Tunnel integration."""
 import asyncio
 import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import DOMAIN
-from .cloudflared import start_cloudflared_tunnel
+from .const import (
+    DOMAIN,
+    PLATFORM_SENSOR,
+    PLATFORM_BUTTON,
+    DATA_TUNNELS,
+    STATUS_RUNNING,
+    STATUS_STOPPED,
+)
+from .cloudflared import CloudflaredTunnel
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+PLATFORMS = [PLATFORM_SENSOR, PLATFORM_BUTTON]
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Cloudflared Tunnel from a config entry."""
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
+    
+    if DATA_TUNNELS not in hass.data[DOMAIN]:
+        hass.data[DOMAIN][DATA_TUNNELS] = {}
+
     hostname = entry.data["hostname"]
     port = entry.data["port"]
 
-    _LOGGER.info(f"Starting cloudflared tunnel for {hostname}:{port}")
-    await start_cloudflared_tunnel(hass, hostname, port)
+    tunnel = CloudflaredTunnel(hass, hostname, port)
+    hass.data[DOMAIN][DATA_TUNNELS][entry.entry_id] = tunnel
+
+    try:
+        await tunnel.start()
+    except Exception as err:
+        raise ConfigEntryNotReady from err
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
+    tunnel = hass.data[DOMAIN][DATA_TUNNELS].get(entry.entry_id)
+    if tunnel:
+        await tunnel.stop()
+        
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        hass.data[DOMAIN][DATA_TUNNELS].pop(entry.entry_id)
+
+    return unload_ok
