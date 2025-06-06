@@ -144,7 +144,7 @@ class CloudflaredTunnel:
         if new_status != self._status:
             self._status = new_status
             for listener in self._listeners:
-                self.hass.async_create_task(listener())
+                listener()  # Call directly, do not use async_create_task
 
     async def start(self) -> None:
         """Start the tunnel."""

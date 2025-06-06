@@ -79,7 +79,7 @@ class CloudflaredPortSensor(CloudflaredBaseSensor):
     """Sensor for Cloudflared local port."""
 
     _attr_name = "Local Port"
-    _attr_icon = "mdi:port"
+    _attr_icon = "mdi:lan"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_native_unit_of_measurement = None  # Port numbers don't have a unit
 
