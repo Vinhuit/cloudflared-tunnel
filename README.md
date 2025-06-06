@@ -1,11 +1,11 @@
 # 🚇 Cloudflared Tunnel Integration for Home Assistant
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
-[![GitHub Release][releases-shield]][releases]
-[![License][license-shield]](LICENSE)
+[![GitHub Release](https://img.shields.io/github/release/Vinhuit/cloudflared_tunnel.svg?style=for-the-badge)](https://github.com/Vinhuit/cloudflared_tunnel/releases)
+[![License](https://img.shields.io/github/license/Vinhuit/cloudflared_tunnel.svg?style=for-the-badge)](LICENSE)
 
-[![Project Maintenance][maintenance-shield]][user_profile]
-[![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
+[![Maintenance](https://img.shields.io/maintenance/yes/2025.svg?style=for-the-badge)](https://github.com/Vinhuit/cloudflared_tunnel)
+[![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg?style=for-the-badge)](https://www.buymeacoffee.com/Vinhuit)
 
 > Create secure tunnels to expose your Home Assistant services using Cloudflare Zero Trust
 
@@ -236,10 +236,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-<sub>[releases]: https://github.com/Vinhuit/cloudflared_tunnel/releases
-[releases-shield]: https://img.shields.io/github/release/Vinhuit/cloudflared_tunnel.svg?style=for-the-badge
-[license-shield]: https://img.shields.io/github/license/Vinhuit/cloudflared_tunnel.svg?style=for-the-badge
-[maintenance-shield]: https://img.shields.io/badge/maintainer-%40Vinhuit-blue.svg?style=for-the-badge
-[user_profile]: https://github.com/Vinhuit
-[buymecoffee]: https://www.buymeacoffee.com/Vinhuit
-[buymecoffeebadge]: https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg?style=for-the-badge</sub>
+[releases]: https://github.com/Vinhuit/cloudflared_tunnel/releases
