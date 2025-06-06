@@ -125,9 +125,23 @@ class CloudflaredTunnel:
 
     @property
     def status(self) -> str:
-        """Get the current tunnel status."""
+        """Get the current tunnel status. Uses netstat to check port if process is not running."""
         if self._status == STATUS_ERROR and self._error_msg:
             return f"{STATUS_ERROR}: {self._error_msg}"
+        # If process is not running, check port with netstat
+        if not self.process or self.process.returncode is not None:
+            try:
+                result = subprocess.run(
+                    f"netstat -tln | grep ':{self.port}'",
+                    shell=True,
+                    capture_output=True,
+                    text=True
+                )
+                if result.stdout.strip():
+                    return STATUS_RUNNING
+            except Exception as err:
+                _LOGGER.error("Error checking port status in status property: %s", err)
+            return STATUS_STOPPED
         return self._status
 
     def add_status_listener(self, listener: Callable) -> None:
