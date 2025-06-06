@@ -155,10 +155,9 @@ class CloudflaredTunnel:
 
     def _update_status(self, new_status: str) -> None:
         """Update status and notify listeners."""
-        if new_status != self._status:
-            self._status = new_status
-            for listener in self._listeners:
-                listener()  # Call directly, do not use async_create_task
+        self._status = new_status
+        for listener in self._listeners:
+            self.hass.loop.call_soon_threadsafe(listener)
 
     async def start(self) -> None:
         """Start the tunnel."""
@@ -276,6 +275,11 @@ class CloudflaredTunnel:
         if self._status_check_unsub:
             self._status_check_unsub()
             self._status_check_unsub = None
+
+        # After stopping, immediately update and log the status
+        current_status = self.status
+        _LOGGER.info("Tunnel status after stop: %s", current_status)
+        self._update_status(current_status)
 
     async def __aenter__(self):
         """Start the tunnel when entering context."""
