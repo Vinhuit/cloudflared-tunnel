@@ -192,12 +192,10 @@ class CloudflaredTunnel:
                 error_line = await self.process.stderr.readline()
                 if error_line:
                     error_msg = error_line.decode().strip()
-                    # Removed all handling for "text file busy" errors
-                    # (No longer retrying on 'text file busy' error)
                     self._status = STATUS_ERROR
-                    self._error_msg = str(err)
-                    _LOGGER.error("Failed to start tunnel: %s", err)
-                    raise
+                    self._error_msg = error_msg
+                    _LOGGER.error("Failed to start tunnel: %s", error_msg)
+                    raise ConfigEntryError(f"Failed to start tunnel: {error_msg}")
                 self._status = STATUS_RUNNING
                 self._error_msg = None
                 _LOGGER.info(
