@@ -31,14 +31,16 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class CloudflaredBaseSensor(SensorEntity):    """Base class for Cloudflared sensors.
+class CloudflaredBaseSensor(SensorEntity):
+    """Base class for Cloudflared sensors.
     
     This class provides common functionality for all Cloudflared tunnel sensors
     including device info and automatic entity naming.
     """
     _attr_has_entity_name = True
     _attr_should_poll = False  # We'll use events instead of polling
-    def __init__(self, config_entry: ConfigEntry, tunnel: "CloudflaredTunnel") -> None:
+
+    def __init__(self, config_entry: ConfigEntry, tunnel: CloudflaredTunnel) -> None:
         """Initialize the sensor."""
         self._config_entry = config_entry
         self._tunnel = tunnel
@@ -59,7 +61,8 @@ class CloudflaredHostnameSensor(CloudflaredBaseSensor):
 
     _attr_name = "Hostname"
     _attr_icon = "mdi:web"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC    
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
     def __init__(self, config_entry: ConfigEntry, tunnel: CloudflaredTunnel) -> None:
         """Initialize the sensor."""
         super().__init__(config_entry, tunnel)
@@ -74,10 +77,10 @@ class CloudflaredHostnameSensor(CloudflaredBaseSensor):
 
 class CloudflaredPortSensor(CloudflaredBaseSensor):
     """Sensor for Cloudflared local port."""
-    
+
     _attr_name = "Local Port"
     _attr_icon = "mdi:port"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC    
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_native_unit_of_measurement = None  # Port numbers don't have a unit
 
     def __init__(self, config_entry: ConfigEntry, tunnel: CloudflaredTunnel) -> None:
@@ -99,7 +102,8 @@ class CloudflaredStatusSensor(CloudflaredBaseSensor):
     """
 
     _attr_name = "Status"
-    _attr_icon = "mdi:tunnel"    # No entity category for this sensor as it's a primary sensor
+    _attr_icon = "mdi:tunnel"
+    # No entity category for this sensor as it's a primary sensor
 
     def __init__(self, config_entry: ConfigEntry, tunnel: CloudflaredTunnel) -> None:
         """Initialize the sensor."""
@@ -111,7 +115,9 @@ class CloudflaredStatusSensor(CloudflaredBaseSensor):
     @property
     def native_value(self) -> str:
         """Return the status."""
-        return self._tunnel.status    @property
+        return self._tunnel.status
+
+    @property
     def extra_state_attributes(self) -> dict[str, str | int | bool]:
         """Return the state attributes."""
         return {
@@ -135,7 +141,8 @@ class CloudflaredProtectionSensor(CloudflaredBaseSensor):
     """Sensor for Cloudflared tunnel protection status."""
 
     _attr_name = "Protection"
-    _attr_icon = "mdi:shield"    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:shield"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, config_entry: ConfigEntry, tunnel: CloudflaredTunnel) -> None:
         """Initialize the sensor."""

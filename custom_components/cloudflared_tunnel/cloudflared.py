@@ -93,9 +93,8 @@ class CloudflaredTunnel:
         """Start periodic status monitoring."""
         if self._status_check_unsub is not None:
             self._status_check_unsub()
-        
         self._status_check_unsub = async_track_time_interval(
-            self.hass, 
+            self.hass,
             self._check_process_status,
             timedelta(seconds=30)
         )
@@ -106,15 +105,11 @@ class CloudflaredTunnel:
             if self._status != STATUS_STOPPED:
                 self._update_status(STATUS_STOPPED)
             return
-
         try:
-            # Check if process is still running
             if self.process.returncode is not None:
-                # Process has terminated
                 self._error_msg = "Process terminated unexpectedly"
                 self._update_status(STATUS_ERROR)
                 self.process = None
-                
                 # Attempt restart if it wasn't stopped intentionally
                 if (self._last_restart is None or 
                     (dt_util.utcnow() - self._last_restart).total_seconds() > 300):  # 5 minute cooldown
@@ -122,9 +117,7 @@ class CloudflaredTunnel:
                     self._last_restart = dt_util.utcnow()
                     await self.start()
             elif self._status != STATUS_RUNNING:
-                # Process is running but status doesn't reflect it
                 self._update_status(STATUS_RUNNING)
-                
         except Exception as err:
             _LOGGER.error("Error checking tunnel status: %s", err)
             self._error_msg = str(err)
@@ -157,15 +150,10 @@ class CloudflaredTunnel:
         """Start the tunnel."""
         if self.process and self.process.returncode is None:
             return
-
-        # Ensure binary directory exists
         os.makedirs(BIN_DIR, exist_ok=True)
-
-        # Download or update binary if needed
         if not os.path.exists(BIN_PATH):
             _LOGGER.info("cloudflared binary not found, downloading...")
             await self.hass.async_add_executor_job(safe_download_cloudflared)
-
         retries = MAX_RETRIES
         while retries > 0:
             try:
@@ -178,21 +166,17 @@ class CloudflaredTunnel:
                     "--hostname",
                     self.hostname,
                 ]
-
                 if self.token:
                     cmd.extend(["--service-token-id", self.token])
-
                 self.process = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-
                 # Check initial output for any immediate errors
                 error_line = await self.process.stderr.readline()
                 if error_line:
                     error_msg = error_line.decode().strip()
-                    # Only treat as error if it's not the websocket listener message
                     if "text file busy" in error_msg.lower():
                         if retries > 1:
                             _LOGGER.warning("Binary is busy, retrying in %s seconds...", RETRY_DELAY)
@@ -203,10 +187,7 @@ class CloudflaredTunnel:
                         raise ConfigEntryError(f"Token authentication failed: {error_msg}")
                     elif not ("INF Start Websocket listener" in error_msg):
                         raise ConfigEntryError(f"Tunnel error: {error_msg}")
-                    
-                    # If it's the websocket listener message, log as info
                     _LOGGER.debug("Cloudflared startup: %s", error_msg)
-
                 self._status = STATUS_RUNNING
                 self._error_msg = None
                 _LOGGER.info(
@@ -215,11 +196,8 @@ class CloudflaredTunnel:
                     self.port,
                     " (Protected)" if self.token else ""
                 )
-
-                # Monitor the process output
                 self.hass.loop.create_task(self._monitor_output())
                 break
-
             except Exception as err:
                 if "text file busy" in str(err).lower() and retries > 1:
                     _LOGGER.warning("Binary is busy, retrying in %s seconds...", RETRY_DELAY)
@@ -230,14 +208,12 @@ class CloudflaredTunnel:
                 self._error_msg = str(err)
                 _LOGGER.error("Failed to start tunnel: %s", err)
                 raise
-
         if retries == 0:
             raise ConfigEntryError("Failed to start tunnel after multiple retries")
 
     async def _monitor_output(self) -> None:
         """Monitor the tunnel process output."""
         assert self.process is not None
-
         while True:
             try:
                 line = await self.process.stdout.readline()
@@ -247,14 +223,11 @@ class CloudflaredTunnel:
                         self._error_msg = error_line.decode().strip()
                         self._update_status(STATUS_ERROR)
                     break
-
                 log_line = line.decode().strip()
                 _LOGGER.debug("[cloudflared] %s", log_line)
-
                 if "error" in log_line.lower():
                     self._error_msg = log_line
                     self._update_status(STATUS_ERROR)
-
             except Exception as err:
                 _LOGGER.error("Error monitoring tunnel output: %s", err)
                 self._error_msg = str(err)
