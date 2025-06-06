@@ -83,6 +83,7 @@ class CloudflaredStatusSensor(CloudflaredBaseSensor):
 
     _attr_name = "Status"
     _attr_icon = "mdi:tunnel"
+    _attr_should_poll = False
 
     def __init__(self, config_entry: ConfigEntry, tunnel) -> None:
         """Initialize the sensor."""
@@ -90,15 +91,24 @@ class CloudflaredStatusSensor(CloudflaredBaseSensor):
         self._attr_unique_id = f"{config_entry.entry_id}_status"
         self._attr_native_value = tunnel.status
         tunnel.add_status_listener(self._handle_status_update)
+        
+        # Define state attributes
+        self._attr_extra_state_attributes = {
+            "last_error": None,
+            "port": tunnel.port,
+            "hostname": tunnel.hostname,
+        }
 
     async def async_will_remove_from_hass(self):
         """Clean up after entity before removal."""
         self._tunnel.remove_status_listener(self._handle_status_update)
 
     @callback
-    async def _handle_status_update(self):
+    def _handle_status_update(self):
         """Handle status updates."""
         self._attr_native_value = self._tunnel.status
+        if self._tunnel._error_msg:
+            self._attr_extra_state_attributes["last_error"] = self._tunnel._error_msg
         self.async_write_ha_state()
 
 

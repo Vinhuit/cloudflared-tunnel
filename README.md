@@ -1,61 +1,138 @@
-# Cloudflared Tunnel Integration for Home Assistant
+# 🚇 Cloudflared Tunnel Integration for Home Assistant
 
-<img src="https://github.com/user-attachments/assets/9f495471-146e-4415-8ea4-e2b2feb82817" alt="Cloudflared![Uploading icon.png…]()
- Tunnel Logo" width="100"/>
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
+[![GitHub Release][releases-shield]][releases]
+[![License][license-shield]](LICENSE)
 
-This custom integration allows you to run Cloudflare TCP access tunnels to expose local services securely over the internet. It uses the `cloudflared access tcp` command to create tunnels without requiring a permanent tunnel configuration.
+[![Project Maintenance][maintenance-shield]][user_profile]
+[![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
 
-## Features
+> Create secure tunnels to expose your Home Assistant services using Cloudflare Zero Trust
 
-- Multiple TCP access tunnel support
-- Automatic download and management of the `cloudflared` binary
-- User-friendly configuration through the UI
-- Real-time tunnel status monitoring
-- Stop/Start controls for each tunnel
+![Cloudflared Tunnel Logo](custom_components/cloudflared_tunnel/brands/icon.png)
+
+This custom integration provides a seamless way to expose local Home Assistant services securely over the internet using Cloudflare's TCP access tunnels. Unlike traditional Cloudflared tunnels, this integration uses the `cloudflared access tcp` command for quick, configuration-free tunnel creation.
+
+[Getting Started](#getting-started) • [Installation](#installation) • [Configuration](#configuration) • [Features](#features) • [Troubleshooting](#troubleshooting)
+
+## ✨ Features
+
+🔄 **Dynamic Tunnels**
+- Create multiple TCP access tunnels on demand
+- Perfect for temporary or dynamic service exposure
+- No permanent tunnel configuration needed
+
+🔒 **Security**
 - JWT token support for protected services
-- Perfect for temporary or dynamic TCP tunnels
-- HACS-compatible
+- Cloudflare Zero Trust integration
+- Real-time tunnel status monitoring
 
-## Installation
+🤖 **Automation Ready**
+- Start/Stop controls via service calls
+- Status sensors for automation triggers
+- Protection status tracking
 
-### Method 1: HACS (Recommended)
+🛠️ **Easy Management**
+- Automatic download of the correct `cloudflared` binary
+- User-friendly configuration through Home Assistant UI
+- Real-time status updates and error reporting
 
-1. Add this repository to HACS as a custom repository:
-   - Repository: `https://github.com/Vinhuit/cloudflared_tunnel`
-   - Category: "Integration"
-2. Install the "Cloudflared Tunnel" integration
+📊 **Monitoring**
+- Dedicated sensor entities for each tunnel
+- Status, hostname, and port monitoring
+- Protection status tracking
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Home Assistant 2023.8.0 or newer
+- A Cloudflare account with a registered domain
+- [HACS](https://hacs.xyz/) installed (for easy installation)
+- (Optional) Cloudflare Zero Trust account for protected tunnels
+
+### Installation
+
+#### Option 1: HACS (Recommended)
+
+1. Open HACS in Home Assistant
+2. Click ⋮ > Custom Repositories
+3. Add this repository:
+   ```
+   URL: https://github.com/Vinhuit/cloudflared_tunnel
+   Category: Integration
+   ```
+4. Click "Download"
+5. Restart Home Assistant
+6. Go to Settings > Devices & Services
+7. Click "+ ADD INTEGRATION"
+8. Search for "Cloudflared Tunnel"
+
+#### Option 2: Manual Installation
+
+1. Download the [latest release](https://github.com/Vinhuit/cloudflared_tunnel/releases)
+2. Extract and copy `cloudflared_tunnel` folder to:
+   ```
+   config/custom_components/cloudflared_tunnel/
+   ```
 3. Restart Home Assistant
-4. Go to Settings -> Devices & Services -> Add Integration
-5. Search for "Cloudflared Tunnel" and configure your tunnel
+4. Go to Settings > Devices & Services
+5. Click "+ ADD INTEGRATION"
+6. Search for "Cloudflared Tunnel"
 
-### Method 2: Manual Installation
+## ⚙️ Configuration
 
-1. Download the latest release
-2. Copy the `cloudflared_tunnel` directory to `custom_components/cloudflared_tunnel/`
-3. Restart Home Assistant
-4. Go to Settings -> Devices & Services -> Add Integration
-5. Search for "Cloudflared Tunnel" and configure your tunnel
+### Basic Setup
 
-## Configuration
+Each tunnel requires just two pieces of information:
+1. **Hostname** - Your Cloudflare domain or subdomain
+   ```
+   Example: assistant.yourdomain.com
+   ```
+2. **Local Port** - The port of your service
+   ```
+   Examples:
+   - 8123 (Home Assistant)
+   - 10300 (Wyoming Protocol)
+   - 1883 (MQTT)
+   ```
 
-Each tunnel requires:
-- **Hostname**: The Cloudflare hostname for your tunnel (e.g., `mytunnel.mydomain.com`)
-- **Local Port**: The local port to tunnel (e.g., `10300` for Wyoming Protocol)
-- **JWT Token**: (Optional) Service token for protected services
+### Protected Tunnels (Optional)
 
-### Getting a JWT Token
+To add authentication to your tunnel:
 
-If you want to protect your tunnel with authentication, you can use a JWT token. Here's how to get one:
-
-1. Go to the [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com)
-2. Navigate to **Access > Service Auth**
+1. Visit [Cloudflare Zero Trust](https://one.dash.cloudflare.com)
+2. Go to **Access > Service Auth**
 3. Click **Create Service Token**
 4. Configure your token:
-   - Give it a name (e.g., "HA Tunnel Token")
-   - Set the duration (or leave blank for no expiration)
-   - Add any IP restrictions if desired
+   - Name: `HA Tunnel Token`
+   - Duration: Choose expiration (or leave blank)
+   - Restrictions: Add IP limits if desired
 5. Click **Generate Token**
-6. Copy the token and paste it in the integration's configuration
+6. Copy & paste the token during tunnel setup
+
+### Advanced Usage
+
+You can create multiple tunnels with different configurations:
+
+```yaml
+# Example Configurations
+
+Home Assistant UI:
+  hostname: home.example.com
+  port: 8123
+  token: [optional]
+
+Voice Assistant:
+  hostname: voice.example.com
+  port: 10300
+  token: required_for_protection
+
+MQTT Broker:
+  hostname: mqtt.example.com
+  port: 1883
+  token: required_for_security
+```
 
 The token will be used to authenticate the tunnel connection. When a token is used:
 - The tunnel becomes protected, requiring authentication
@@ -71,55 +148,98 @@ For each tunnel, the following entities are created:
 - **Status Sensor**: Shows the current tunnel status (running/stopped/error)
 - **Stop Button**: Allows stopping the tunnel
 
-## Example Use Cases
+## 🔧 Integration Details
 
-1. Protected Wyoming Protocol Services:
+### Available Entities
+
+Each tunnel creates several entities:
+
+| Entity | Type | Description |
+|--------|------|-------------|
+| `sensor.cloudflared_[hostname]_status` | Sensor | Tunnel status (running/stopped/error) |
+| `sensor.cloudflared_[hostname]_protection` | Sensor | Protection status (protected/public) |
+| `button.cloudflared_[hostname]_stop` | Button | Stop tunnel control |
+| `sensor.cloudflared_[hostname]_port` | Sensor | Local port number |
+
+### Common Use Cases
+
+#### 1. Voice Assistant Access
 ```yaml
-hostname: wyoming.mydomain.com
-port: 10300
-token: your_jwt_token_here  # Optional
+hostname: voice.example.com
+port: 10300  # Wyoming Protocol
+token: optional_for_protection
 ```
 
-2. Public Home Assistant Remote Access:
+#### 2. Remote UI Access
 ```yaml
-hostname: home.mydomain.com
-port: 8123
-# No token = public access
+hostname: ha.example.com
+port: 8123    # Home Assistant
+# No token for public access
 ```
 
-3. Protected SSH Access:
+#### 3. Secure MQTT
 ```yaml
-hostname: ssh.mydomain.com
-port: 22
-token: your_jwt_token_here  # Recommended for SSH
+hostname: mqtt.example.com
+port: 1883
+token: recommended_for_security
 ```
 
-## How It Works
+## 🔍 Troubleshooting
 
-This integration uses Cloudflare's TCP tunneling feature (`cloudflared access tcp`) to create instant tunnels. Each tunnel:
+### Common Issues
 
-1. Establishes a secure connection to Cloudflare
-2. Routes traffic from your chosen hostname to a local port
-3. Can be optionally protected with JWT authentication
-4. Can be started/stopped on demand
+#### Tunnel Won't Start
+- Verify hostname DNS configuration in Cloudflare
+- Check if port is available and service is running
+- Review Home Assistant logs for error messages
 
-## Troubleshooting
+#### Binary Download Issues
+1. Check internet connectivity
+2. Verify write permissions
+3. Try downloading `cloudflared` manually
+4. Check system architecture compatibility
 
-1. If the tunnel fails to start:
-   - Check that the hostname is properly configured in Cloudflare
-   - Verify the local service is running on the specified port
-   - Check Home Assistant logs for detailed error messages
+#### Protection Issues
+1. Verify token format
+2. Ensure token hasn't expired
+3. Check IP restrictions if configured
+4. Verify Zero Trust settings
 
-2. If the binary fails to download:
-   - Check your internet connection
-   - Verify Home Assistant has write permissions to the binary directory
-   - Try manual installation of cloudflared
+### Advanced Debugging
 
-## Support
+Enable debug logging by adding to `configuration.yaml`:
+```yaml
+logger:
+  logs:
+    custom_components.cloudflared_tunnel: debug
+```
 
-- For bugs and feature requests, open an issue on GitHub
-- For general questions, use the discussions section
+## 🤝 Contributing
 
-## License
+Contributions are welcome! Here's how:
 
-This project is licensed under the MIT License - see the LICENSE file for details
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to your branch
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## ❤️ Support
+
+- 🐛 Found a bug? [Open an issue](https://github.com/Vinhuit/cloudflared_tunnel/issues)
+- 💡 Have an idea? Start a [Discussion](https://github.com/Vinhuit/cloudflared_tunnel/discussions)
+- ⭐ Like this project? Star it on GitHub!
+
+---
+
+<sub>[releases]: https://github.com/Vinhuit/cloudflared_tunnel/releases
+[releases-shield]: https://img.shields.io/github/release/Vinhuit/cloudflared_tunnel.svg?style=for-the-badge
+[license-shield]: https://img.shields.io/github/license/Vinhuit/cloudflared_tunnel.svg?style=for-the-badge
+[maintenance-shield]: https://img.shields.io/badge/maintainer-%40Vinhuit-blue.svg?style=for-the-badge
+[user_profile]: https://github.com/Vinhuit
+[buymecoffee]: https://www.buymeacoffee.com/Vinhuit
+[buymecoffeebadge]: https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg?style=for-the-badge</sub>
