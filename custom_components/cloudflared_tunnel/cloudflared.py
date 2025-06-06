@@ -192,10 +192,14 @@ class CloudflaredTunnel:
                 error_line = await self.process.stderr.readline()
                 if error_line:
                     error_msg = error_line.decode().strip()
-                    self._status = STATUS_ERROR
-                    self._error_msg = error_msg
-                    _LOGGER.error("Failed to start tunnel: %s", error_msg)
-                    raise ConfigEntryError(f"Failed to start tunnel: {error_msg}")
+                    if "error" in error_msg.lower():
+                        self._status = STATUS_ERROR
+                        self._error_msg = error_msg
+                        _LOGGER.error("Failed to start tunnel: %s", error_msg)
+                        raise ConfigEntryError(f"Failed to start tunnel: {error_msg}")
+                    else:
+                        # Not an error, just log and continue
+                        _LOGGER.info("cloudflared: %s", error_msg)
                 self._status = STATUS_RUNNING
                 self._error_msg = None
                 _LOGGER.info(
