@@ -125,19 +125,20 @@ class CloudflaredTunnel:
 
     @property
     def status(self) -> str:
-        """Get the current tunnel status. Uses netstat to check port if process is not running."""
+        """Get the current tunnel status. Uses _is_port_active to check port if process is not running."""
         if self._status == STATUS_ERROR and self._error_msg:
             return f"{STATUS_ERROR}: {self._error_msg}"
-        # If process is not running, check port with netstat
+        # If process is not running, check port with async _is_port_active
         if not self.process or self.process.returncode is not None:
+            # Use a synchronous wrapper for the async method
             try:
-                result = subprocess.run(
-                    f"netstat -tln | grep ':{self.port}'",
-                    shell=True,
-                    capture_output=True,
-                    text=True
-                )
-                if result.stdout.strip():
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    coro = self._is_port_active()
+                    port_active = asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=2)
+                else:
+                    port_active = loop.run_until_complete(self._is_port_active())
+                if port_active:
                     return STATUS_RUNNING
             except Exception as err:
                 _LOGGER.error("Error checking port status in status property: %s", err)
