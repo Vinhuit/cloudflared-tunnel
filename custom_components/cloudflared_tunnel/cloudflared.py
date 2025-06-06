@@ -275,10 +275,7 @@ class CloudflaredTunnel:
                 self.process = None
 
         # Kill any remaining cloudflared processes on our port
-        await kill_port_process(self.port)        
-     
-        except Exception as err:
-            _LOGGER.warning("Error while killing cloudflared processes: %s", err)
+        await kill_port_process(self.port)
 
         self._update_status(STATUS_STOPPED)
         _LOGGER.info("Stopped cloudflared tunnel for %s:%s", self.hostname, self.port)
