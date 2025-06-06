@@ -163,7 +163,7 @@ class CloudflaredTunnel:
     async def start(self) -> None:
         """Start the tunnel."""
         # If already running (by process or by port), do nothing
-        if (self.process and self.process.returncode is None) or self.status == STATUS_RUNNING:
+        if (self.process and self.process.returncode is None) or self._status == STATUS_RUNNING:
             return
         os.makedirs(BIN_DIR, exist_ok=True)
         if not os.path.exists(BIN_PATH):
@@ -192,17 +192,12 @@ class CloudflaredTunnel:
                 error_line = await self.process.stderr.readline()
                 if error_line:
                     error_msg = error_line.decode().strip()
-                    if "text file busy" in error_msg.lower():
-                        if retries > 1:
-                            _LOGGER.warning("Binary is busy, retrying in %s seconds...", RETRY_DELAY)
-                            await asyncio.sleep(RETRY_DELAY)
-                            retries -= 1
-                            continue
-                    elif "token" in error_msg.lower():
-                        raise ConfigEntryError(f"Token authentication failed: {error_msg}")
-                    elif not ("INF Start Websocket listener" in error_msg):
-                        raise ConfigEntryError(f"Tunnel error: {error_msg}")
-                    _LOGGER.debug("Cloudflared startup: %s", error_msg)
+                    # Removed all handling for "text file busy" errors
+                    # (No longer retrying on 'text file busy' error)
+                    self._status = STATUS_ERROR
+                    self._error_msg = str(err)
+                    _LOGGER.error("Failed to start tunnel: %s", err)
+                    raise
                 self._status = STATUS_RUNNING
                 self._error_msg = None
                 _LOGGER.info(
@@ -214,11 +209,6 @@ class CloudflaredTunnel:
                 self.hass.loop.create_task(self._monitor_output())
                 break
             except Exception as err:
-                if "text file busy" in str(err).lower() and retries > 1:
-                    _LOGGER.warning("Binary is busy, retrying in %s seconds...", RETRY_DELAY)
-                    await asyncio.sleep(RETRY_DELAY)
-                    retries -= 1
-                    continue
                 self._status = STATUS_ERROR
                 self._error_msg = str(err)
                 _LOGGER.error("Failed to start tunnel: %s", err)
@@ -226,7 +216,7 @@ class CloudflaredTunnel:
         if retries == 0:
             raise ConfigEntryError("Failed to start tunnel after multiple retries")
         # After starting, immediately update and log the status
-        current_status = self.status
+        current_status = self._status
         _LOGGER.info("Tunnel status after start: %s", current_status)
         self._update_status(current_status)
 
@@ -278,7 +268,7 @@ class CloudflaredTunnel:
             self._status_check_unsub = None
 
         # After stopping, immediately update and log the status
-        current_status = self.status
+        current_status = self._status
         _LOGGER.info("Tunnel status after stop: %s", current_status)
         self._update_status(current_status)
 
