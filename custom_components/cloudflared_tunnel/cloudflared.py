@@ -274,6 +274,11 @@ class CloudflaredTunnel:
         _LOGGER.info("Tunnel status after stop: %s", current_status)
         self._update_status(current_status)
 
+    async def async_remove(self) -> None:
+        """Cleanup and stop the tunnel when the entry is removed."""
+        await self.stop()
+        _LOGGER.info("Tunnel stopped and cleaned up after entry removal for %s:%s", self.hostname, self.port)
+
     async def __aenter__(self):
         """Start the tunnel when entering context."""
         await self.start()
