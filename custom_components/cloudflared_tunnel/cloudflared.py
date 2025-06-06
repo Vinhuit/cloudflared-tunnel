@@ -28,54 +28,11 @@ RETRY_DELAY = 2  # seconds
 async def kill_port_process(port: int) -> None:
     """Kill any process using the specified port with force."""
     try:
-        for _ in range(2):  # Try twice to ensure process is killed
-            # Try multiple methods for killing the process
-            try:
-                # Try lsof first
-                subprocess.run(f"lsof -ti tcp:{port} | xargs kill -9", shell=True, capture_output=True)
-            except Exception:
-                pass
-
-            
-            try:
-                # Additional method using netstat and pkill
-                subprocess.run(
-                    f"netstat -tlpn | grep ':{port}' | awk '{{print $7}}' | cut -d'/' -f1 | xargs -r kill -9",
-                    shell=True,
-                    capture_output=True
-                )
-            except Exception:
-                pass
-            
-            await asyncio.sleep(0.5)  # Brief pause between attempts
-            
+        subprocess.run(f"netstat -tlpn | grep ':{port}' | awk '{{print $7}}' | cut -d'/' -f1 | xargs kill -9", shell=True, capture_output=True)
         _LOGGER.info("Successfully cleared port %s", port)
     except Exception as err:
         _LOGGER.warning("Error while attempting to clear port %s: %s", port, err)
-
-async def _kill_process_on_port(port: int) -> None:
-    """Kill any process using the specified port."""
-    try:
-        if platform.system().lower() == "windows":
-            cmd = f"Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }}"
-            process = await asyncio.create_subprocess_exec(
-                "powershell.exe", "-Command", cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-        else:
-            cmd = f"lsof -ti tcp:{port} | xargs kill -9"
-            process = await asyncio.create_subprocess_shell(
-                cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-        
-        await process.wait()
-        await asyncio.sleep(1)  # Give the system time to free up the port
-        _LOGGER.debug("Port %s cleanup completed", port)
-    except Exception as err:
-        _LOGGER.warning("Error during port cleanup: %s", err)
+   
 
 def safe_download_cloudflared() -> None:
     """Download the cloudflared binary with retries."""
@@ -86,7 +43,7 @@ def safe_download_cloudflared() -> None:
 
     if "arm" in arch or "aarch64" in arch:
         url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
-    elif "x86_64" in arch:
+    elif "amd64" in arch or "x86_64" in arch:
         url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
     else:
         raise RuntimeError(f"Unsupported architecture: {arch}")
@@ -318,17 +275,8 @@ class CloudflaredTunnel:
                 self.process = None
 
         # Kill any remaining cloudflared processes on our port
-        await kill_port_process(self.port)
-
-        # Try to kill any remaining cloudflared processes associated with our hostname
-        try:
-            # Use pkill to find and kill cloudflared processes matching our hostname
-            cmd = f"pkill -f 'cloudflared.*{self.hostname}'"
-            await asyncio.create_subprocess_shell(
-                cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
+        await kill_port_process(self.port)        
+     
         except Exception as err:
             _LOGGER.warning("Error while killing cloudflared processes: %s", err)
 
@@ -352,45 +300,15 @@ class CloudflaredTunnel:
     async def _is_port_active(self) -> bool:
         """Check if the port is active and responding."""
         try:
-            # Check using multiple methods for better reliability
-            try:
-                # Try lsof first
-                result = subprocess.run(
-                    f"lsof -i tcp:{self._port}",
-                    shell=True,
-                    capture_output=True,
-                    text=True
-                )
-                if result.stdout.strip():
-                    return True
-            except Exception:
-                pass
-
-            try:
-                # Try netstat as backup
-                result = subprocess.run(
-                    f"netstat -tln | grep ':{self._port}'",
-                    shell=True,
-                    capture_output=True,
-                    text=True
-                )
-                if result.stdout.strip():
-                    return True
-            except Exception:
-                pass
-
-            try:
-                # Try ss as a modern alternative
-                result = subprocess.run(
-                    f"ss -tln | grep ':{self._port}'",
-                    shell=True,
-                    capture_output=True,
-                    text=True
-                )
-                if result.stdout.strip():
-                    return True
-            except Exception:
-                pass
+            # Try netstat as backup
+            result = subprocess.run(
+                f"netstat -tln | grep ':{self.port}'",
+                shell=True,
+                capture_output=True,
+                text=True
+            )
+            if result.stdout.strip():
+                return True
 
             return False
         except Exception as err:
