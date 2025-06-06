@@ -1,9 +1,9 @@
 """Sensor platform for Cloudflared Tunnel."""
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 
 from .const import (
     DOMAIN,
@@ -34,6 +34,7 @@ class CloudflaredBaseSensor(SensorEntity):
     """Base class for Cloudflared sensors."""
 
     _attr_has_entity_name = True
+    _attr_should_poll = False  # We'll use events instead of polling
 
     def __init__(self, config_entry: ConfigEntry, tunnel) -> None:
         """Initialize the sensor."""
@@ -57,12 +58,17 @@ class CloudflaredHostnameSensor(CloudflaredBaseSensor):
 
     _attr_name = "Hostname"
     _attr_icon = "mdi:web"
+    entity_category = "diagnostic"
 
     def __init__(self, config_entry: ConfigEntry, tunnel) -> None:
         """Initialize the sensor."""
         super().__init__(config_entry, tunnel)
         self._attr_unique_id = f"{config_entry.entry_id}_hostname"
-        self._attr_native_value = tunnel.hostname
+
+    @property
+    def native_value(self) -> str:
+        """Return the hostname."""
+        return self._tunnel.hostname
 
 
 class CloudflaredPortSensor(CloudflaredBaseSensor):
@@ -70,12 +76,17 @@ class CloudflaredPortSensor(CloudflaredBaseSensor):
 
     _attr_name = "Local Port"
     _attr_icon = "mdi:port"
+    entity_category = "diagnostic"
 
     def __init__(self, config_entry: ConfigEntry, tunnel) -> None:
         """Initialize the sensor."""
         super().__init__(config_entry, tunnel)
         self._attr_unique_id = f"{config_entry.entry_id}_port"
-        self._attr_native_value = tunnel.port
+
+    @property
+    def native_value(self) -> int:
+        """Return the port number."""
+        return self._tunnel.port
 
 
 class CloudflaredStatusSensor(CloudflaredBaseSensor):
@@ -83,20 +94,26 @@ class CloudflaredStatusSensor(CloudflaredBaseSensor):
 
     _attr_name = "Status"
     _attr_icon = "mdi:tunnel"
-    _attr_should_poll = False
 
     def __init__(self, config_entry: ConfigEntry, tunnel) -> None:
         """Initialize the sensor."""
         super().__init__(config_entry, tunnel)
         self._attr_unique_id = f"{config_entry.entry_id}_status"
-        self._attr_native_value = tunnel.status
         tunnel.add_status_listener(self._handle_status_update)
-        
-        # Define state attributes
-        self._attr_extra_state_attributes = {
-            "last_error": None,
-            "port": tunnel.port,
-            "hostname": tunnel.hostname,
+
+    @property
+    def native_value(self) -> str:
+        """Return the status."""
+        return self._tunnel.status
+
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        return {
+            "last_error": self._tunnel._error_msg,
+            "port": self._tunnel.port,
+            "hostname": self._tunnel.hostname,
+            "protected": bool(self._tunnel.token)
         }
 
     async def async_will_remove_from_hass(self):
@@ -106,10 +123,7 @@ class CloudflaredStatusSensor(CloudflaredBaseSensor):
     @callback
     def _handle_status_update(self):
         """Handle status updates."""
-        self._attr_native_value = self._tunnel.status
-        if self._tunnel._error_msg:
-            self._attr_extra_state_attributes["last_error"] = self._tunnel._error_msg
-        self.async_write_ha_state()
+        self.async_write_ha_state()  # This will trigger native_value and attributes update
 
 
 class CloudflaredProtectionSensor(CloudflaredBaseSensor):
@@ -117,9 +131,14 @@ class CloudflaredProtectionSensor(CloudflaredBaseSensor):
 
     _attr_name = "Protection"
     _attr_icon = "mdi:shield"
+    entity_category = "diagnostic"
 
     def __init__(self, config_entry: ConfigEntry, tunnel) -> None:
         """Initialize the sensor."""
         super().__init__(config_entry, tunnel)
         self._attr_unique_id = f"{config_entry.entry_id}_protection"
-        self._attr_native_value = "Protected" if tunnel.token else "Public"
+    
+    @property
+    def native_value(self) -> str:
+        """Return the protection status."""
+        return "Protected" if self._tunnel.token else "Public"
