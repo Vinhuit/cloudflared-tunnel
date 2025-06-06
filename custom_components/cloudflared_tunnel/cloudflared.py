@@ -162,7 +162,8 @@ class CloudflaredTunnel:
 
     async def start(self) -> None:
         """Start the tunnel."""
-        if self.process and self.process.returncode is None:
+        # If already running (by process or by port), do nothing
+        if (self.process and self.process.returncode is None) or self.status == STATUS_RUNNING:
             return
         os.makedirs(BIN_DIR, exist_ok=True)
         if not os.path.exists(BIN_PATH):
@@ -224,6 +225,10 @@ class CloudflaredTunnel:
                 raise
         if retries == 0:
             raise ConfigEntryError("Failed to start tunnel after multiple retries")
+        # After starting, immediately update and log the status
+        current_status = self.status
+        _LOGGER.info("Tunnel status after start: %s", current_status)
+        self._update_status(current_status)
 
     async def _monitor_output(self) -> None:
         """Monitor the tunnel process output."""
