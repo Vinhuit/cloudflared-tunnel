@@ -33,7 +33,9 @@ async def async_setup_entry(
 class CloudflaredBaseSensor(SensorEntity):
     """Base class for Cloudflared sensors."""
 
-    _attr_has_entity_name = True    def __init__(self, config_entry: ConfigEntry, tunnel) -> None:
+    _attr_has_entity_name = True
+
+    def __init__(self, config_entry: ConfigEntry, tunnel) -> None:
         """Initialize the sensor."""
         self._config_entry = config_entry
         self._tunnel = tunnel
